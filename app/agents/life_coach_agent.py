@@ -8,6 +8,7 @@ from typing import Dict, List, Any, Optional
 from app.chains.langchain_coach import LangChainCoach
 from app.config.settings import ENABLE_GOOGLE_INTEGRATION
 from app.utils.memory import MemoryManager
+from app.models.llm import get_llm_model
 
 
 class LifeCoachAgent:
@@ -31,6 +32,9 @@ class LifeCoachAgent:
         
         # Store Google integration data that can be accessed from outside
         self.google_integration_data = self.coaching_chain.google_integration_data if hasattr(self.coaching_chain, 'google_integration_data') else {}
+        
+        # Initialize LLM for dynamic content generation
+        self.llm = get_llm_model()
         
     def provide_coaching(self, user_input: str) -> Dict[str, Any]:
         """
@@ -90,11 +94,30 @@ class LifeCoachAgent:
         # Get relevant memories from previous sessions
         memory_summary = self.memory_manager.get_summary_for_new_conversation()
         
-        # Generate a context-aware greeting
-        greeting = "Welcome back to your Bahá'í life coach session."
-        
-        if memory_summary:
-            greeting += "\n\n" + memory_summary
+        # Generate a context-aware greeting using the LLM
+        try:
+            context = "You are a compassionate Bahá'í life coach starting a new coaching session."
+            
+            if memory_summary:
+                context += f"\n\nHere's a summary of previous sessions with this user:\n{memory_summary}"
+            
+            greeting_prompt = f"""
+{context}
+
+Generate a warm, natural greeting to start a new conversation with the user. 
+Your greeting should be welcoming and establish a connection while avoiding rigid templated language.
+Be spontaneous and genuine, maintaining the coaching relationship.
+If there are previous session insights, reference them naturally without a formulaic approach.
+Keep your response concise (2-3 sentences) and conversational in tone.
+"""
+            
+            greeting = self.llm.invoke(greeting_prompt).content.strip()
+            
+        except Exception as e:
+            # Fallback greeting if LLM fails
+            greeting = "Welcome back to your Bahá'í life coach session."
+            if memory_summary:
+                greeting += "\n\n" + memory_summary
         
         return {
             'response': greeting,
@@ -112,7 +135,7 @@ class LifeCoachAgent:
         Returns:
             A list of key insights.
         """
-        # For now, we'll use reflection questions as insights
+        # Use reflection questions as insights
         return self._generate_reflection_questions(user_input, coach_response)
     
     def _format_response(self, response: str) -> str:
@@ -139,15 +162,47 @@ class LifeCoachAgent:
         Returns:
             A list of reflection questions.
         """
-        # In a more advanced version, we might use an LLM to generate personalized
-        # reflection questions based on the conversation. For now, we'll use
-        # some simple predefined questions.
-        
-        return [
-            "How does this guidance align with your personal values?",
-            "What steps could you take today to apply this wisdom?",
-            "How might this perspective transform your approach to this situation?"
-        ]
+        # Use the LLM to generate personalized reflection questions
+        try:
+            # Create a prompt for the LLM
+            prompt = f"""
+Based on the following conversation between a user and a Bahá'í life coach, generate 3 thought-provoking reflection questions.
+These questions should be personalized, insightful, and encourage deep thinking about the discussed topics.
+They should relate to Bahá'í principles and help the user apply the wisdom to their specific situation.
+Avoid formulaic expressions and create spontaneous, meaningful questions.
+
+User: {user_input}
+
+Coach: {coach_response}
+
+Generate 3 reflection questions:
+"""
+            
+            # Get response from LLM
+            response = self.llm.invoke(prompt).content
+            
+            # Parse out the questions (assuming they're numbered or on separate lines)
+            questions = []
+            for line in response.strip().split('\n'):
+                # Remove any numbering or bullet points
+                clean_line = line.strip()
+                if clean_line.startswith('1.') or clean_line.startswith('2.') or clean_line.startswith('3.'):
+                    clean_line = clean_line[2:].strip()
+                elif clean_line.startswith('-'):
+                    clean_line = clean_line[1:].strip()
+                    
+                if clean_line and '?' in clean_line and len(clean_line) > 10:
+                    questions.append(clean_line)
+            
+            # Return at least 1, maximum 3 questions
+            return questions[:3] or ["How does this perspective align with your spiritual values?"]
+            
+        except Exception as e:
+            # Fallback in case of errors
+            return [
+                "How might you apply this wisdom to your current situation?",
+                "What spiritual principle resonates most with you from this conversation?"
+            ]
     
     def _process_memory_after_conversation(self) -> None:
         """

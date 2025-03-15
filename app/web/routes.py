@@ -7,23 +7,32 @@ import uuid
 import traceback
 from flask import Blueprint, render_template, request, jsonify, session
 import os
+import logging
 
-from app.agents.life_coach_agent import LifeCoachAgent
+from app.agents.direct_coach_agent import DirectCoachAgent
 from app.config.settings import (
     ENABLE_GOOGLE_INTEGRATION,
     ENABLE_SPEECH,
     SPEECH_VOICE,
     SPEECH_RATE,
     SPEECH_PITCH,
-    SPEECH_PAUSE_THRESHOLD
+    SPEECH_PAUSE_THRESHOLD,
+    validate_config
 )
 from app.utils.memory import MemoryManager
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Create the blueprint
 main = Blueprint('main', __name__)
 
-# Initialize the life coach agent
-life_coach_agent = LifeCoachAgent()
+# Validate configuration
+validate_config()
+
+# Initialize the agent only when needed
+agent = None
 
 @main.route('/')
 def index():
@@ -50,71 +59,75 @@ def chat():
     Returns:
         dict: JSON response containing the coach's reply
     """
-    data = request.json
-    user_message = data.get('message', '')
-    
-    if not user_message:
-        return jsonify({'error': 'No message provided'}), 400
+    global agent
     
     try:
-        # Get the conversation ID from the session
-        conversation_id = session.get('conversation_id', str(uuid.uuid4()))
+        data = request.get_json()
         
-        # Process the message with the enhanced agent
-        agent = LifeCoachAgent(conversation_id=conversation_id)
-        result = agent.provide_coaching(user_message)
+        if not data or 'message' not in data:
+            return jsonify({'error': 'No message provided'}), 400
         
-        # Store the conversation ID for future requests
-        session['conversation_id'] = result['conversation_id']
+        message = data['message']
         
-        # Get Google integration data from the agent
-        google_integration_data = {}
-        if ENABLE_GOOGLE_INTEGRATION and hasattr(agent, 'google_integration_data'):
-            google_integration_data = agent.google_integration_data
+        # Initialize or retrieve agent with conversation ID
+        conversation_id = data.get('conversation_id')
         
-        # Return the response with all necessary information
-        response_data = {
+        if not agent or (conversation_id and agent.conversation_id != conversation_id):
+            agent = DirectCoachAgent(conversation_id=conversation_id)
+        
+        # Process the message
+        result = agent.provide_coaching(message)
+        
+        # Create response
+        response = {
             'response': result['response'],
-            'conversation_id': result['conversation_id'],
-            'insights': result.get('insights', []),
-            'google_integration': google_integration_data
+            'conversation_id': result['conversation_id']
         }
         
-        return jsonify(response_data)
-    
-    except Exception as e:
-        # Get the full stacktrace
-        error_traceback = traceback.format_exc()
-        print(f"Error in chat endpoint: {str(e)}")
-        print(error_traceback)
+        # Add insights if available
+        if 'insights' in result:
+            response['insights'] = result['insights']
         
-        # Return a detailed error to the client
-        return jsonify({
-            'error': str(e),
-            'error_type': e.__class__.__name__,
-            'error_details': "Check the server logs for the complete traceback."
-        }), 500
+        # Add Google integration data if applicable
+        if ENABLE_GOOGLE_INTEGRATION:
+            response['google_integration'] = {
+                'enabled': agent.google_integration_data.get('enabled', False),
+                'integration_used': result.get('integration_used', False),
+                'calendar_events': agent.google_integration_data.get('calendar_events', []),
+                'tasks': agent.google_integration_data.get('tasks', [])
+            }
+        
+        return jsonify(response)
+        
+    except Exception as e:
+        logger.error(f"Error processing chat: {str(e)}")
+        return jsonify({'error': str(e)}), 500
 
 @main.route('/api/reset', methods=['POST'])
 def reset_conversation():
     """
-    Reset the conversation by creating a new conversation ID.
+    Reset the conversation and start a new one.
     
     Returns:
         dict: JSON response confirming the reset
     """
-    session['conversation_id'] = str(uuid.uuid4())
+    global agent
     
-    # Start a new conversation with context from previous sessions
-    agent = LifeCoachAgent(conversation_id=session['conversation_id'])
-    result = agent.start_new_conversation()
-    
-    return jsonify({
-        'status': 'success', 
-        'message': 'Conversation reset', 
-        'conversation_id': session['conversation_id'],
-        'greeting': result['response']
-    })
+    try:
+        # Create a new agent with a fresh conversation ID
+        agent = DirectCoachAgent()
+        
+        # Get a greeting for the new conversation
+        result = agent.start_new_conversation()
+        
+        return jsonify({
+            'response': result['response'],
+            'conversation_id': result['conversation_id']
+        })
+        
+    except Exception as e:
+        logger.error(f"Error resetting conversation: {str(e)}")
+        return jsonify({'error': str(e)}), 500
 
 @main.route('/api/integration_status', methods=['GET'])
 def integration_status():
@@ -138,19 +151,23 @@ def get_memories():
     Returns:
         dict: JSON response with memories
     """
-    conversation_id = session.get('conversation_id')
-    if not conversation_id:
+    global agent
+    
+    if not agent:
         return jsonify({'error': 'No active conversation'}), 400
     
-    query = request.args.get('query', '')
-    
-    agent = LifeCoachAgent(conversation_id=conversation_id)
-    memories = agent.get_memories(query if query else None)
-    
-    return jsonify({
-        'status': 'success',
-        'memories': memories
-    })
+    try:
+        query = request.args.get('query')
+        memories = agent.get_memories(query)
+        
+        return jsonify({
+            'memories': memories,
+            'conversation_id': agent.conversation_id
+        })
+        
+    except Exception as e:
+        logger.error(f"Error retrieving memories: {str(e)}")
+        return jsonify({'error': str(e)}), 500
 
 @main.route('/api/memories', methods=['POST'])
 def add_memory():
@@ -160,23 +177,29 @@ def add_memory():
     Returns:
         dict: JSON response confirming the addition
     """
-    data = request.json
-    content = data.get('content', '')
+    global agent
     
-    if not content:
-        return jsonify({'error': 'No memory content provided'}), 400
-    
-    conversation_id = session.get('conversation_id')
-    if not conversation_id:
+    if not agent:
         return jsonify({'error': 'No active conversation'}), 400
     
-    agent = LifeCoachAgent(conversation_id=conversation_id)
-    agent.add_explicit_memory(content)
-    
-    return jsonify({
-        'status': 'success',
-        'message': 'Memory added successfully'
-    })
+    try:
+        data = request.get_json()
+        
+        if not data or 'content' not in data:
+            return jsonify({'error': 'No memory content provided'}), 400
+        
+        content = data['content']
+        agent.add_explicit_memory(content)
+        
+        return jsonify({
+            'success': True,
+            'message': 'Memory added successfully',
+            'conversation_id': agent.conversation_id
+        })
+        
+    except Exception as e:
+        logger.error(f"Error adding memory: {str(e)}")
+        return jsonify({'error': str(e)}), 500
 
 @main.route('/api/google/auth_url', methods=['GET'])
 def get_google_auth_url():

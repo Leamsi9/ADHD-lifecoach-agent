@@ -224,14 +224,14 @@ class LangChainCoach:
         user_msg = HumanMessage(content=user_message)
         self.messages.append(user_msg)
         
-        # Get the appropriate stage-specific prompt
-        stage_prompt = self._get_stage_specific_prompt()
+        # Get the appropriate stage-specific context
+        stage_context = self._get_stage_specific_context()
         
         # Create the full prompt
         prompt = ChatPromptTemplate.from_messages([
             ("system", LIFE_COACH_SYSTEM_PROMPT),
             MessagesPlaceholder(variable_name="history"),
-            ("system", stage_prompt),
+            ("system", stage_context),
             ("human", "{input}")
         ])
         
@@ -288,20 +288,28 @@ class LangChainCoach:
         """
         return self.session_state.to_dict()
     
-    def _get_stage_specific_prompt(self) -> str:
+    def _get_stage_specific_context(self) -> str:
         """
-        Get the appropriate prompt based on the current conversation stage.
+        Get the appropriate context based on the current conversation stage.
+        This provides guidance to the model without rigid templating.
         
         Returns:
-            The stage-specific prompt.
+            The stage-specific context.
         """
         stage = self.session_state.current_stage
         
+        # Base context for guiding the model
+        context = f"Current stage: {stage}. "
+        
         if stage == "initial":
-            return INITIAL_GREETING_TEMPLATE
+            context += """
+You are starting a new coaching conversation. Introduce yourself warmly and ask the user
+how they're feeling today. Be welcoming and establish a connection. Avoid rigid templated greetings
+and instead be natural and spontaneous while maintaining the coaching relationship.
+"""
         
         elif stage == "ground_connect":
-            # Select a Baháʼí quote for grounding
+            # Select a Baháʼí quote for grounding but let the model use it naturally
             available_quotes = [q for q in BAHAI_QUOTES if q["theme"] not in self.session_state.quoted_principles]
             
             # If we've used all quotes, reset the tracking
@@ -312,20 +320,63 @@ class LangChainCoach:
             quote_data = random.choice(available_quotes)
             self.session_state.quoted_principles.add(quote_data["theme"])
             
-            # Format the template with the selected quote
-            return GROUND_CONNECT_TEMPLATE.format(
-                bahai_quote=quote_data["quote"],
-                quote_source=quote_data["source"]
-            )
+            context += f"""
+This is the Ground & Connect stage. Help the user center themselves emotionally and spiritually.
+
+Consider sharing this Bahá'í quote on the theme of "{quote_data["theme"]}" if it fits naturally in the conversation:
+"{quote_data["quote"]}" - {quote_data["source"]}
+
+You don't need to force this quote into the conversation - you can use your own knowledge of Bahá'í writings or 
+skip the quote if it doesn't fit naturally. The goal is to help the user connect with their spiritual values.
+
+Check in on how they're feeling emotionally and spiritually. Listen for their energy levels and immediate concerns.
+"""
         
         elif stage == "explore":
-            return EXPLORE_TEMPLATE
+            context += """
+This is the Explore stage. Help the user dive deeper into their situation or challenge.
+
+Ask thoughtful questions to understand:
+- What specific challenges they're facing
+- What strengths and resources they already have
+- What progress or success would look like for them
+
+Use your knowledge of Bahá'í principles to help frame the exploration in a spiritual context,
+but maintain a natural conversational flow. Draw on your understanding of ADHD-friendly approaches
+to keep the conversation focused and engaging.
+"""
         
         elif stage == "summarize":
-            return SUMMARIZE_TEMPLATE
+            context += """
+This is the Summarize stage. Help the user reflect on what they've learned in this conversation.
+
+Summarize key insights in a way that feels natural, not formulaic. Consider:
+- What spiritual principles were discussed
+- What practical next steps emerged
+- What small, specific action they might take
+
+Ask the user what feels most important to them from the conversation today.
+Encourage them to identify one small action aligned with their values.
+"""
         
         else:  # follow_up
-            return FOLLOW_UP_TEMPLATE
+            context += """
+This is the Follow-up stage. Continue the conversation based on what the user has shared.
+
+Build on previous exchanges while being attentive to where the user wants to go next.
+Remember to maintain a balance of spiritual wisdom and practical strategy.
+Be warm, encouraging, and genuine in your responses.
+"""
+        
+        # Add information about Google integration if available
+        if self.google_enabled:
+            if self.session_state.calendar_events:
+                context += f"\n\nThe user has {len(self.session_state.calendar_events)} upcoming events on their calendar."
+            
+            if self.session_state.tasks:
+                context += f"\n\nThe user has {len(self.session_state.tasks)} tasks on their to-do list."
+        
+        return context
     
     def _update_google_data(self) -> None:
         """Update calendar events and tasks from Google APIs."""
@@ -358,24 +409,48 @@ class LangChainCoach:
             return False
         
         try:
-            # Simple extraction of task title (in a real app, use NLP for better extraction)
-            task_indicators = ["add task ", "create task ", "remind me to ", "i need to "]
-            task_title = None
+            # Extract task title using LLM
+            task_detection_prompt = f"""
+You are helping to extract a task from a user message. The user wants to create a new task or reminder.
+From the following message, identify the main task title. Return ONLY the task title, nothing else.
+
+User message: {user_message}
+
+Task title:
+"""
             
-            for indicator in task_indicators:
-                if indicator in user_message.lower():
-                    task_title = user_message.lower().split(indicator, 1)[1].strip()
-                    task_title = task_title.capitalize()
-                    break
-            
-            if task_title:
+            try:
+                task_title = self.llm.invoke(task_detection_prompt).content.strip()
+                
                 # Create the task
-                task = create_task(task_title)
-                if task:
-                    # Add to our local list
-                    self.session_state.tasks.append(task)
-                    logger.info(f"Created task: {task_title}")
-                    return True
+                if task_title:
+                    task = create_task(task_title)
+                    if task:
+                        # Add to our local list
+                        self.session_state.tasks.append(task)
+                        logger.info(f"Created task: {task_title}")
+                        return True
+            except Exception as e:
+                logger.error(f"Error extracting task title with LLM: {str(e)}")
+                
+                # Fallback to simple extraction if LLM fails
+                task_indicators = ["add task ", "create task ", "remind me to ", "i need to "]
+                task_title = None
+                
+                for indicator in task_indicators:
+                    if indicator in user_message.lower():
+                        task_title = user_message.lower().split(indicator, 1)[1].strip()
+                        task_title = task_title.capitalize()
+                        break
+                
+                if task_title:
+                    # Create the task
+                    task = create_task(task_title)
+                    if task:
+                        # Add to our local list
+                        self.session_state.tasks.append(task)
+                        logger.info(f"Created task (fallback method): {task_title}")
+                        return True
         
         except Exception as e:
             logger.error(f"Error creating task: {str(e)}")
