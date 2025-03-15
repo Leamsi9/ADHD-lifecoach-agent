@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Baháʼí Life Coach</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div class="app-container">
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <h2>Settings</h2>
+            </div>
+            
+            <!-- Google Integration Toggle -->
+            <div class="sidebar-section">
+                <h3>Integrations</h3>
+                <div class="toggle-container">
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="google-toggle" {% if google_integration_enabled %}checked{% endif %}>
+                        <span class="toggle-slider"></span>
+                    </label>
+                    <span class="toggle-label">Google Integration</span>
+                </div>
+                <div id="google-integration-badge" class="integration-badge {% if google_integration_enabled %}enabled{% else %}disabled{% endif %}">
+                    <i class="fab fa-google"></i> Google Integration {% if google_integration_enabled %}Active{% else %}Disabled{% endif %}
+                </div>
+                <div id="google-actions" class="google-actions {% if not google_integration_enabled %}hidden{% endif %}">
+                    <p>Available actions:</p>
+                    <ul>
+                        <li>View calendar events</li>
+                        <li>Add calendar events</li>
+                        <li>Manage tasks</li>
+                    </ul>
+                </div>
+            </div>
+            
+            <!-- Speech Settings -->
+            <div class="sidebar-section">
+                <h3>Speech Settings</h3>
+                <div class="toggle-container">
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="speech-toggle" {% if speech_enabled %}checked{% endif %}>
+                        <span class="toggle-slider"></span>
+                    </label>
+                    <span class="toggle-label">Enable Speech</span>
+                </div>
+            </div>
+            
+            <!-- Insights Panel -->
+            <div class="sidebar-section">
+                <div id="insights-panel" class="insights-panel">
+                    <h3>Key Insights</h3>
+                    <p>No insights available yet.</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="chat-container">
+            <header>
+                <h1>🌟 Baháʼí Life Coach 🌟</h1>
+                <p>Guidance based on Baháʼí principles</p>
+                <div class="header-buttons">
+                    <button id="voice-toggle-btn" class="toggle-btn" title="Toggle Voice Mode">
+                        <i class="fas fa-microphone-slash"></i>
+                    </button>
+                    <button id="reset-btn">Start New Conversation</button>
+                </div>
+            </header>
+            
+            <div class="chat-messages" id="chat-messages">
+                <div class="message assistant">
+                    <div class="message-content">
+                        <p>Welcome to your personal life coach, guided by Baháʼí principles. Share your thoughts, concerns, or questions, and receive compassionate guidance.</p>
+                        {% if google_integration_enabled %}
+                        <p><small>Google Calendar and Tasks integration is available to help organize your plans and tasks.</small></p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            
+            <div class="chat-input-container">
+                <div id="voice-indicator" class="voice-indicator hidden">
+                    <div class="voice-pulse"></div>
+                    <span id="voice-status">Listening...</span>
+                    <span id="voice-timer"></span>
+                </div>
+                <textarea id="message-input" placeholder="Type your message here..." rows="3"></textarea>
+                <button id="send-btn">Send</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- JavaScript configurations -->
+    <script>
+        // Configuration from server
+        const googleIntegrationEnabled = {{ 'true' if google_integration_enabled else 'false' }};
+        const speechEnabled = {{ 'true' if speech_enabled else 'false' }};
+        const speechPauseThreshold = {{ speech_pause_threshold }};
+        const speechVoice = "{{ speech_voice }}";
+        const speechRate = {{ speech_rate }};
+        const speechPitch = {{ speech_pitch }};
+    </script>
+    
+    <!-- JavaScript files -->
+    <script src="{{ url_for('static', filename='js/speech.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/chat.js') }}"></script>
+</body>
+</html> 
