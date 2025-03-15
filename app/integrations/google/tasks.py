@@ -9,7 +9,6 @@ import json
 import logging
 
 from langchain_core.tools import BaseTool
-from langchain_core.pydantic_v1 import BaseModel, Field
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
@@ -17,6 +16,12 @@ from googleapiclient.discovery import build
 
 from app.config.settings import DEBUG
 from app.integrations.google.calendar import get_google_credentials
+
+# Use direct pydantic imports instead of the deprecated langchain_core ones
+try:
+    from pydantic.v1 import BaseModel, Field
+except ImportError:
+    from pydantic import BaseModel, Field
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)

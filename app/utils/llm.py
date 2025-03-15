@@ -2,6 +2,16 @@
 LLM utility functions for the Bahai Life Coach agent.
 """
 
+import logging
+from app.config.settings import (
+    OPENAI_API_KEY, MODEL_NAME, TEMPERATURE, 
+    OLLAMA_URL, OLLAMA_MODEL, 
+    HUGGINGFACE_API_KEY, HUGGINGFACE_MODEL
+)
+
+# Configure logging
+logger = logging.getLogger(__name__)
+
 def get_completion(messages, provider="openai", model=None, temperature=0.7):
     """
     Get a completion from the LLM based on the messages provided.
@@ -18,16 +28,19 @@ def get_completion(messages, provider="openai", model=None, temperature=0.7):
     # Process provider name
     provider = provider.lower()
     
+    # Log the actual MODEL_NAME from settings
+    logger.info(f"MODEL_NAME from settings: {MODEL_NAME}")
+    
     # Import required dependencies based on provider
     if provider == "openai":
         from openai import OpenAI
-        from app.config.settings import OPENAI_API_KEY
         
         # Initialize client
         client = OpenAI(api_key=OPENAI_API_KEY)
         
         # Set default model if not provided
-        model = model or "gpt-4.5-preview"
+        model = model or MODEL_NAME
+        logger.info(f"Using OpenAI model: {model}")
         
         # Create completion
         response = client.chat.completions.create(
@@ -42,10 +55,10 @@ def get_completion(messages, provider="openai", model=None, temperature=0.7):
     elif provider == "ollama":
         import requests
         import json
-        from app.config.settings import OLLAMA_URL
         
         # Set default model if not provided
-        model = model or "llama2"
+        model = model or (MODEL_NAME if "llama" in MODEL_NAME else OLLAMA_MODEL)
+        logger.info(f"Using Ollama model: {model}")
         
         # Convert to ollama format
         ollama_messages = []
@@ -75,10 +88,10 @@ def get_completion(messages, provider="openai", model=None, temperature=0.7):
     
     elif provider == "huggingface":
         import requests
-        from app.config.settings import HUGGINGFACE_API_KEY
         
         # Set default model if not provided
-        model = model or "mistralai/Mistral-7B-Instruct-v0.1"
+        model = model or (MODEL_NAME if "/" in MODEL_NAME else HUGGINGFACE_MODEL)
+        logger.info(f"Using HuggingFace model: {model}")
         
         # Combine messages into a single prompt for HF
         prompt = ""

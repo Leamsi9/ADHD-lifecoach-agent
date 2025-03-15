@@ -19,20 +19,27 @@ def get_llm_model():
     Returns:
         Language model instance based on configuration
     """
+    # Log the actual model name being used from settings
+    print(f"Using MODEL_NAME from settings: {MODEL_NAME}")
+    
     if USE_OLLAMA:
-        print(f"Initializing LLM with Ollama model: {OLLAMA_MODEL}")
+        # For Ollama, prioritize the main MODEL_NAME if set in .env
+        actual_model = MODEL_NAME if "llama" in MODEL_NAME else OLLAMA_MODEL
+        print(f"Initializing LLM with Ollama model: {actual_model}")
         print(f"  - Ollama base URL: {OLLAMA_BASE_URL}")
         # Initialize Ollama with minimal parameters to avoid compatibility issues
         return Ollama(
             base_url=OLLAMA_BASE_URL,
-            model=OLLAMA_MODEL,
+            model=actual_model,
             temperature=TEMPERATURE,
         )
     elif USE_HUGGINGFACE:
-        print(f"Initializing LLM with Hugging Face model: {HUGGINGFACE_MODEL}")
+        # For HuggingFace, prioritize the main MODEL_NAME if it contains a slash (indicating HF model path)
+        actual_model = MODEL_NAME if "/" in MODEL_NAME else HUGGINGFACE_MODEL
+        print(f"Initializing LLM with Hugging Face model: {actual_model}")
         # Initialize HuggingFaceEndpoint with the Inference API
         return HuggingFaceEndpoint(
-            endpoint_url=f"{HUGGINGFACE_API_URL}{HUGGINGFACE_MODEL}",
+            endpoint_url=f"{HUGGINGFACE_API_URL}{actual_model}",
             huggingfacehub_api_token=HUGGINGFACE_API_KEY,
             task="text-generation",
             model_kwargs={

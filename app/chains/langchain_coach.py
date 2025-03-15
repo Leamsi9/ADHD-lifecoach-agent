@@ -91,16 +91,18 @@ if ENABLE_GOOGLE_INTEGRATION:
             from app.integrations.google.calendar import get_upcoming_events
             from app.integrations.google.tasks import get_tasks, create_task
             GOOGLE_IMPORTS_SUCCESSFUL = True
-            logger.info("Google integration modules imported successfully")
+            logger.info("✅ Google integration modules imported successfully")
         except ImportError:
             # Use mock implementations if imports fail
-            logger.warning("Google API client not installed. Using mock implementations.")
+            logger.warning("⚠️ Google API client not installed. Using mock implementations.")
+            logger.info("To enable real Google integration, install the Google client libraries with:")
+            logger.info("    pip install google-api-python-client google-auth-httplib2 google-auth-oauthlib")
             get_upcoming_events = get_mock_events
             get_tasks = get_mock_tasks
             create_task = create_mock_task
             GOOGLE_IMPORTS_SUCCESSFUL = True  # We're using mock implementations
     except Exception as e:
-        logger.warning(f"Error setting up Google integration: {str(e)}")
+        logger.warning(f"❌ Error setting up Google integration: {str(e)}")
 
 
 class SessionState:

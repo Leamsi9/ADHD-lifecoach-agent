@@ -3,10 +3,16 @@ Configuration settings for the Bahai Life Coach agent.
 """
 
 import os
-from dotenv import load_dotenv
+import sys
+from dotenv import load_dotenv, find_dotenv
 
-# Load environment variables from .env file
-load_dotenv()
+# Load environment variables from .env file with more explicit handling
+dotenv_path = find_dotenv(usecwd=True)
+if dotenv_path:
+    print(f"Loading environment from: {dotenv_path}")
+    load_dotenv(dotenv_path)
+else:
+    print("WARNING: No .env file found!")
 
 # API Key and Model Configuration
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
@@ -19,8 +25,12 @@ USE_OPENAI = LLM_PROVIDER == "openai"
 USE_OLLAMA = LLM_PROVIDER == "ollama"
 USE_HUGGINGFACE = LLM_PROVIDER == "huggingface"
 
+# Print raw environment variable value for debugging
+raw_model_name = os.getenv("MODEL_NAME")
+print(f"Raw MODEL_NAME from environment: '{raw_model_name}'")
+
 # Model Settings
-MODEL_NAME = os.getenv("MODEL_NAME", "gpt-4-turbo" if USE_OPENAI else "llama2")
+MODEL_NAME = os.getenv("MODEL_NAME", "gpt-4.5-preview" if USE_OPENAI else "llama2")
 TEMPERATURE = float(os.getenv("TEMPERATURE", "0.7"))
 MAX_TOKENS = int(os.getenv("MAX_TOKENS", "2000"))
 
