@@ -18,19 +18,16 @@ else:
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434")
 HUGGINGFACE_API_KEY = os.getenv("HUGGINGFACE_API_KEY", "")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 
 # LLM Provider Configuration
-LLM_PROVIDER = os.getenv("LLM_PROVIDER", "openai").lower()  # Options: openai, ollama, huggingface
+LLM_PROVIDER = os.getenv("LLM_PROVIDER", "openai").lower()  # Options: openai, ollama, huggingface, gemini
 USE_OPENAI = LLM_PROVIDER == "openai"
 USE_OLLAMA = LLM_PROVIDER == "ollama"
 USE_HUGGINGFACE = LLM_PROVIDER == "huggingface"
-
-# Print raw environment variable value for debugging
-raw_model_name = os.getenv("MODEL_NAME")
-print(f"Raw MODEL_NAME from environment: '{raw_model_name}'")
+USE_GEMINI = LLM_PROVIDER == "gemini"
 
 # Model Settings
-MODEL_NAME = os.getenv("MODEL_NAME", "gpt-4.5-preview" if USE_OPENAI else "llama2")
 TEMPERATURE = float(os.getenv("TEMPERATURE", "0.7"))
 MAX_TOKENS = int(os.getenv("MAX_TOKENS", "2000"))
 
@@ -39,6 +36,11 @@ OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.2")
 HUGGINGFACE_MODEL = os.getenv("HUGGINGFACE_MODEL", "mistralai/Mistral-7B-Instruct-v0.1")
 HUGGINGFACE_API_URL = os.getenv("HUGGINGFACE_API_URL", "https://api-inference.huggingface.co/models/")
+
+# Gemini-specific settings
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-pro")
+GEMINI_LOCATION = os.getenv("GEMINI_LOCATION", "us-central1")
+GEMINI_TIMEOUT = int(os.getenv("GEMINI_TIMEOUT", "300"))  # Timeout in seconds
 
 # Flask App Configuration
 FLASK_SECRET_KEY = os.getenv("FLASK_SECRET_KEY", "bahai-life-coach-secret-key")
@@ -61,6 +63,12 @@ SPEECH_RATE = float(os.getenv("SPEECH_RATE", "1.0"))  # 1.0 = normal speed
 SPEECH_PITCH = float(os.getenv("SPEECH_PITCH", "1.0"))  # 1.0 = normal pitch
 SPEECH_PAUSE_THRESHOLD = float(os.getenv("SPEECH_PAUSE_THRESHOLD", "5.0"))  # Seconds of silence before auto-sending
 
+# Memory Configuration
+ENABLE_MEMORY_TRACKING = os.getenv("ENABLE_MEMORY_TRACKING", "False").lower() == "true"
+
+# Add OPENAI_MODEL
+OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-3.5-turbo")
+
 def validate_config():
     """
     Validate required configuration settings.
@@ -74,6 +82,9 @@ def validate_config():
     if USE_HUGGINGFACE and not HUGGINGFACE_API_KEY:
         raise ValueError("HuggingFace API key is required when using HuggingFace as the LLM provider")
     
+    if USE_GEMINI and not GEMINI_API_KEY:
+        raise ValueError("Google Gemini API key is required when using Gemini as the LLM provider")
+    
     # If Google integration is enabled, check if credentials file exists
     if ENABLE_GOOGLE_INTEGRATION:
         if not os.path.exists(GOOGLE_CREDENTIALS_PATH):
@@ -81,15 +92,19 @@ def validate_config():
     
     # Log which LLM provider is being used
     print(f"Using LLM provider: {LLM_PROVIDER.upper()}")
-    print(f"Model: {MODEL_NAME}")
     
     if USE_OPENAI:
+        print(f"Model: {OPENAI_MODEL}")
         print(f"  - Using OpenAI API")
     elif USE_OLLAMA:
-        print(f"  - Using Ollama: {OLLAMA_MODEL}")
+        print(f"Model: {OLLAMA_MODEL}")
         print(f"  - Ollama base URL: {OLLAMA_BASE_URL}")
     elif USE_HUGGINGFACE:
-        print(f"  - Using HuggingFace: {HUGGINGFACE_MODEL}")
+        print(f"Model: {HUGGINGFACE_MODEL}")
+        print(f"  - Using HuggingFace API")
+    elif USE_GEMINI:
+        print(f"Model: {GEMINI_MODEL}")
+        print(f"  - Gemini location: {GEMINI_LOCATION}")
     
     # Log Google integration status
     if ENABLE_GOOGLE_INTEGRATION:
@@ -109,4 +124,4 @@ def validate_config():
         print(f"Speech functionality: DISABLED")
 
 # Initialize configuration validation
-validate_config() 
+validate_config()

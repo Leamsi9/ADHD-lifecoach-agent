@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """
-Test script for the DirectCoachAgent.
-Run this script to verify that the DirectCoachAgent works correctly via the adapter.
+Test script for the LifeCoachAgent.
+Run this script to verify that the LifeCoachAgent works correctly via the adapter.
 """
 
 import logging
@@ -15,7 +15,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-logger.info("🧪 Starting DirectCoachAgent test")
+logger.info("🧪 Starting LifeCoachAgent test")
 
 # Import the adapter to apply the patch
 import app.agents.agent_adapter

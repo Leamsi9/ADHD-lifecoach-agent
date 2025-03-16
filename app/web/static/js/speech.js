@@ -37,11 +37,7 @@ class SpeechManager {
         this.onListeningStart = null;
         this.onListeningEnd = null;
         this.onSendRequest = null;
-        
-        // Initialize if enabled
-        if (this.options.enabled) {
-            this.initialize();
-        }
+        this.onTranscript = null;
     }
     
     /**
@@ -54,83 +50,104 @@ class SpeechManager {
     
     /**
      * Initialize speech recognition and synthesis
+     * @returns {boolean} Whether initialization was successful
      */
     initialize() {
         // Skip if not available
         if (!this.isAvailable()) {
             console.warn('Speech recognition is not available in this browser');
-            return;
+            return false;
         }
         
-        // Initialize speech recognition
-        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-        this.recognition = new SpeechRecognition();
-        this.recognition.continuous = true;
-        this.recognition.interimResults = true;
-        
-        // Set up event listeners
-        this.recognition.onresult = (event) => {
-            this.lastSpeechTime = Date.now();
-            let interimTranscript = '';
-            let finalTranscript = '';
+        try {
+            // Initialize speech recognition
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            this.recognition = new SpeechRecognition();
+            this.recognition.continuous = true;
+            this.recognition.interimResults = true;
             
-            // Process results
-            for (let i = event.resultIndex; i < event.results.length; i++) {
-                const transcript = event.results[i][0].transcript;
-                if (event.results[i].isFinal) {
-                    finalTranscript += transcript;
+            // Set up event listeners
+            this.recognition.onresult = (event) => {
+                this.lastSpeechTime = Date.now();
+                let interimTranscript = '';
+                let finalTranscript = '';
+                
+                // Process results
+                for (let i = event.resultIndex; i < event.results.length; i++) {
+                    const transcript = event.results[i][0].transcript;
+                    if (event.results[i].isFinal) {
+                        finalTranscript += transcript;
+                    } else {
+                        interimTranscript += transcript;
+                    }
+                }
+                
+                // Update transcript
+                if (finalTranscript !== '') {
+                    this.transcript += finalTranscript;
+                }
+                
+                // Call transcript change callback
+                if (this.onTranscriptChange) {
+                    this.onTranscriptChange(this.transcript + interimTranscript);
+                }
+                
+                // Send transcript if final result
+                if (finalTranscript !== '' && this.onTranscript) {
+                    this.onTranscript(this.transcript);
+                }
+                
+                // Reset pause timer
+                this.resetPauseTimer();
+            };
+            
+            this.recognition.onerror = (event) => {
+                console.error('Speech recognition error:', event.error);
+                if (event.error === 'no-speech') {
+                    // Nothing detected for a while, this is expected
+                    return;
+                }
+                
+                // For actual errors, stop listening
+                if (['audio-capture', 'network', 'not-allowed', 'service-not-allowed'].includes(event.error)) {
+                    this.stopListening();
+                }
+            };
+            
+            this.recognition.onend = () => {
+                // Restart if still in listening mode
+                if (this.isListening) {
+                    try {
+                        this.recognition.start();
+                    } catch (e) {
+                        console.error('Failed to restart recognition:', e);
+                        this.isListening = false;
+                        if (this.onListeningEnd) {
+                            this.onListeningEnd();
+                        }
+                    }
                 } else {
-                    interimTranscript += transcript;
+                    if (this.onListeningEnd) {
+                        this.onListeningEnd();
+                    }
+                }
+            };
+            
+            // Initialize speech synthesis
+            if (this.synthesis) {
+                // Get available voices
+                this.updateVoices();
+                
+                // Set up voice change listener
+                if (this.synthesis.onvoiceschanged !== undefined) {
+                    this.synthesis.onvoiceschanged = this.updateVoices.bind(this);
                 }
             }
             
-            // Update transcript
-            if (finalTranscript !== '') {
-                this.transcript += finalTranscript;
-            }
-            
-            // Call transcript change callback
-            if (this.onTranscriptChange) {
-                this.onTranscriptChange(this.transcript + interimTranscript);
-            }
-            
-            // Reset pause timer
-            this.resetPauseTimer();
-        };
-        
-        this.recognition.onerror = (event) => {
-            console.error('Speech recognition error:', event.error);
-            if (event.error === 'no-speech') {
-                // Nothing detected for a while, this is expected
-                return;
-            }
-            
-            // For actual errors, stop listening
-            if (['audio-capture', 'network', 'not-allowed', 'service-not-allowed'].includes(event.error)) {
-                this.stopListening();
-            }
-        };
-        
-        this.recognition.onend = () => {
-            // Restart if still in listening mode
-            if (this.isListening) {
-                this.recognition.start();
-            } else {
-                if (this.onListeningEnd) {
-                    this.onListeningEnd();
-                }
-            }
-        };
-        
-        // Initialize speech synthesis
-        if (this.synthesis) {
-            // Get available voices
-            this.updateVoices();
-            
-            // Set up voice change listener
-            if (this.synthesis.onvoiceschanged !== undefined) {
-                this.synthesis.onvoiceschanged = this.updateVoices.bind(this);
-            }
+            return true;
+        } catch (error) {
+            console.error('Failed to initialize speech manager:', error);
+            return false;
         }
     }
     
@@ -171,8 +188,7 @@ class SpeechManager {
      */
     startListening() {
         if (!this.isAvailable() || !this.recognition) {
-            this.initialize();
-            if (!this.recognition) {
+            if (!this.initialize()) {
                 console.error('Speech recognition failed to initialize');
                 return;
             }
@@ -218,54 +234,11 @@ class SpeechManager {
     }
     
     /**
-     * Toggle listening state
-     */
-    toggleListening() {
-        if (this.isListening) {
-            this.stopListening();
-        } else {
-            this.startListening();
-        }
-    }
-    
-    /**
-     * Reset pause timer
-     */
-    resetPauseTimer() {
-        // Clear existing timer
-        if (this.pauseTimer) {
-            clearTimeout(this.pauseTimer);
-            this.pauseTimer = null;
-        }
-        
-        // Set new timer
-        if (this.isListening && this.transcript.trim() !== '') {
-            this.pauseTimer = setTimeout(() => {
-                // Send transcript if pause threshold exceeded
-                if (this.onSendRequest && this.transcript.trim() !== '') {
-                    this.onSendRequest(this.transcript);
-                    this.transcript = '';
-                }
-            }, this.options.pauseThreshold * 1000);
-        }
-    }
-    
-    /**
-     * Send the current transcript
-     */
-    sendTranscript() {
-        if (this.onSendRequest && this.transcript.trim() !== '') {
-            this.onSendRequest(this.transcript);
-            this.transcript = '';
-        }
-    }
-    
-    /**
      * Speak text using speech synthesis
      * @param {string} text - Text to speak
      */
     speak(text) {
-        if (!this.synthesis) return;
+        if (!this.synthesis || !this.options.enabled) return;
         
         // Cancel any ongoing speech
         this.synthesis.cancel();
@@ -282,8 +255,61 @@ class SpeechManager {
         utterance.rate = this.options.rate;
         utterance.pitch = this.options.pitch;
         
-        // Speak
+        // Start speaking
         this.synthesis.speak(utterance);
+    }
+    
+    /**
+     * Set speech enabled state
+     * @param {boolean} enabled - Whether speech is enabled
+     */
+    setEnabled(enabled) {
+        this.options.enabled = enabled;
+        if (!enabled) {
+            this.stopListening();
+            if (this.synthesis) {
+                this.synthesis.cancel();
+            }
+        }
+    }
+    
+    /**
+     * Set speech rate
+     * @param {number} rate - Speech rate (0.1 to 10)
+     */
+    setRate(rate) {
+        this.options.rate = Math.max(0.1, Math.min(10, rate));
+    }
+    
+    /**
+     * Set speech pitch
+     * @param {number} pitch - Speech pitch (0 to 2)
+     */
+    setPitch(pitch) {
+        this.options.pitch = Math.max(0, Math.min(2, pitch));
+    }
+    
+    /**
+     * Reset pause timer
+     * @private
+     */
+    resetPauseTimer() {
+        // Clear existing timer
+        if (this.pauseTimer) {
+            clearTimeout(this.pauseTimer);
+            this.pauseTimer = null;
+        }
+        
+        // Set new timer
+        if (this.isListening && this.transcript.trim() !== '') {
+            this.pauseTimer = setTimeout(() => {
+                // Send transcript if pause threshold exceeded and we have callback
+                if (this.onTranscript && this.transcript.trim() !== '') {
+                    this.onTranscript(this.transcript);
+                    this.transcript = '';
+                }
+            }, this.options.pauseThreshold * 1000);
+        }
     }
 }
 

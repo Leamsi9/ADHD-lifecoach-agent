@@ -9,7 +9,7 @@ import logging
 
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 
-from app.config.settings import ENABLE_GOOGLE_INTEGRATION
+from app.config.settings import ENABLE_GOOGLE_INTEGRATION, ENABLE_MEMORY_TRACKING
 from app.utils.memory import MemoryManager
 from app.models.llm import get_llm_model
 from app.prompts.life_coach_prompts import LIFE_COACH_SYSTEM_PROMPT, BAHAI_QUOTES
@@ -37,7 +37,7 @@ if ENABLE_GOOGLE_INTEGRATION:
         logger.warning(f"❌ Error setting up Google integration: {str(e)}")
 
 
-class DirectCoachAgent:
+class LifeCoachAgent:
     """
     A simplified life coach agent that provides coaching based on Bahai principles,
     directly using the LLM without the structured coaching chain.
@@ -52,16 +52,22 @@ class DirectCoachAgent:
         """
         self.conversation_id = conversation_id or str(uuid.uuid4())
         
-        # Initialize memory manager
-        self.memory_manager = MemoryManager(conversation_id=self.conversation_id)
+        # Set memory tracking based on settings
+        self.enable_memory = ENABLE_MEMORY_TRACKING
+        if self.enable_memory:
+            self.memory_manager = MemoryManager(conversation_id=self.conversation_id)
+        else:
+            self.memory_manager = None
         
         # Initialize LLM
         self.llm = get_llm_model()
         
-        # Initialize message history
+        # Initialize message history with system prompt
         self.messages = [
             SystemMessage(content=LIFE_COACH_SYSTEM_PROMPT)
         ]
+        logger.info("Initializing LifeCoachAgent with system prompt:")
+        logger.info(LIFE_COACH_SYSTEM_PROMPT[:50] + "...")  # Show first 500 chars
         
         # Initialize Google integration status
         self.google_enabled = ENABLE_GOOGLE_INTEGRATION and GOOGLE_IMPORTS_SUCCESSFUL
@@ -118,11 +124,13 @@ class DirectCoachAgent:
             for task in self.google_integration_data['tasks'][:3]:  # Limit to 3 tasks
                 context += f"- {task.get('title', 'Task')}\n"
                 
-        # Get relevant memories to provide context
-        memories = self.memory_manager.get_relevant_memories(user_input)
+        # Get relevant memories if memory tracking is enabled
+        memories = []
+        if self.enable_memory and self.memory_manager:
+            memories = self.memory_manager.get_relevant_memories(user_input)
         if memories:
             context += "\n\nRelevant information from previous conversations:\n"
-            for memory in memories[:3]:  # Limit to 3 memories
+            for memory in memories[:3]:
                 context += f"- {memory.get('content', '')}\n"
         
         # If we have context, add it as a system message
@@ -142,15 +150,17 @@ class DirectCoachAgent:
             ai_msg = AIMessage(content=coach_response)
             self.messages.append(ai_msg)
             
-            # Extract and store facts after the conversation
-            self._process_memory_after_conversation()
+            # Process memory if enabled
+            if self.enable_memory and self.memory_manager:
+                self._process_memory_after_conversation()
+                if is_memory_request:
+                    self.memory_manager.add_explicit_memory(user_input)
             
-            # If this was a memory request, explicitly store it
-            if is_memory_request:
-                self.memory_manager.add_explicit_memory(user_input)
-            
-            # Extract insights for reflection
-            insights = self._generate_reflection_questions(user_input, coach_response)
+            # Extract insights for reflection only if memory tracking is enabled, otherwise leave insights empty
+            if self.enable_memory:
+                insights = self._generate_reflection_questions(user_input, coach_response)
+            else:
+                insights = []
             
             # Return the response with all necessary information
             result = {
@@ -191,7 +201,6 @@ class DirectCoachAgent:
             
             # Reset message history for new conversation
             self.messages = [
-                SystemMessage(content=LIFE_COACH_SYSTEM_PROMPT),
                 SystemMessage(content=prompt)
             ]
             
@@ -275,6 +284,9 @@ Generate 3 reflection questions:
         """
         Process and store memories after the conversation.
         """
+        if not (self.enable_memory and self.memory_manager):
+            return
+
         # Convert LangChain messages to the format expected by memory manager
         conversation_history = []
         
@@ -303,7 +315,14 @@ Generate 3 reflection questions:
         Returns:
             List of relevant memories.
         """
-        return self.memory_manager.get_relevant_memories(query)
+        if not (self.enable_memory and self.memory_manager):
+            return []
+        try:
+            MAX_MEMORIES = 5
+            return self.memory_manager.get_relevant_memories(query, limit=MAX_MEMORIES)
+        except Exception as e:
+            logger.error(f"Error retrieving memories: {str(e)}")
+            return []
     
     def add_explicit_memory(self, content: str) -> None:
         """
@@ -312,7 +331,8 @@ Generate 3 reflection questions:
         Args:
             content: The content to remember.
         """
-        self.memory_manager.add_explicit_memory(content)
+        if self.enable_memory and self.memory_manager:
+            self.memory_manager.add_explicit_memory(content)
         
     def _update_google_data(self) -> None:
         """Update calendar events and tasks from Google APIs."""

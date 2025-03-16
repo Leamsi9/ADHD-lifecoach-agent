@@ -11,4 +11,4 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 logger.info("🚀 Bahai Life Coach application initialized")
-logger.info("🧠 Using DirectCoachAgent with system prompt-based approach")
+logger.info("🧠 Using LifeCoachAgent with system prompt-based approach")
