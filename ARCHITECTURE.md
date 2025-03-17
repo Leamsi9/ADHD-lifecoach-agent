@@ -89,7 +89,7 @@ Manages communication with large language models (e.g., OpenAI, Ollama, Hugging 
 Centralizes application configuration, loading settings from environment variables.
 
 **Key Settings:**
-- `LLM_PROVIDER`: The LLM provider to use (openai, ollama, huggingface)
+- `LLM_MODEL`: The LLM provider to use (openai, ollama, huggingface)
 - `MODEL_NAME`: The name of the model to use
 - `TEMPERATURE`: The temperature parameter for the LLM
 - `ENABLE_GOOGLE_INTEGRATION`: Whether Google integration is enabled
@@ -102,7 +102,7 @@ Centralizes application configuration, loading settings from environment variabl
 
 ```
 ┌─────────────┐    ┌───────────────┐    ┌───────────────┐    ┌───────────────┐    ┌─────────────┐
-│ Web Browser │───►│ Flask Routes  │───►│ DirectCoach   │───►│ LLM API       │───►│ Web Browser │
+│ Web Browser │───►│ Flask Routes  │───►│ LifeCoach   │───►│ LLM API       │───►│ Web Browser │
 └─────────────┘    └───────────────┘    └───────────────┘    └───────────────┘    └─────────────┘
                                               │
                                               ▼
@@ -178,7 +178,7 @@ Centralizes application configuration, loading settings from environment variabl
 
 ```
 ┌───────────────┐    ┌───────────────┐    ┌───────────────┐    ┌───────────────┐
-│ User Request  │───►│ DirectCoach   │───►│ Google API    │───►│ Update State  │
+│ User Request  │───►│ LifeCoach   │───►│ Google API    │───►│ Update State  │
 └───────────────┘    └───────────────┘    └───────────────┘    └───────────────┘
 ```
 

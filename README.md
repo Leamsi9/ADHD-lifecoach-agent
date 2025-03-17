@@ -11,7 +11,7 @@ A life coaching agent built with LangChain, incorporating Bahai principles and t
 - Conversation history for contextual responses
 - Web-based chat interface for easy interaction
 - Voice interaction mode using browser's Speech API
-- Support for OpenAI, local Ollama, and Hugging Face models
+- Support for multiple LLM models including OpenAI, Google Gemini, and Deepseek
 - Google Calendar and Tasks integration for time management
 
 ## Setup
@@ -32,39 +32,46 @@ A life coaching agent built with LangChain, incorporating Bahai principles and t
    # Edit .env with your API keys and model configuration
    ```
 
-## API Options
+## LLM Model Options
 
-### Using OpenAI API
-Set your OpenAI API key in the `.env` file:
+The application uses a model-centric approach, allowing you to specify which exact model you want to use without needing to know which provider it belongs to. Each model requires its corresponding API key to be set.
+
+### Available Models
+
+#### OpenAI Models
+- `gpt-3.5-turbo` - Fast and cost-effective
+- `gpt-4o` - Balanced performance and capability (default OpenAI model)
+- `gpt-4-turbo` - More extensive and powerful
+
+#### Google Gemini Models
+- `gemini-pro` - Original Gemini model
+- `gemini-1.5-pro` - Improved Gemini model with extended context
+- `gemini-2.0-flash` - Latest fast Gemini model (default model)
+
+#### Deepseek Models
+- `deepseek-chat` - General purpose chat model
+- `deepseek-coder` - Specialized for code generation
+- `deepseek-reasoner` - Enhanced reasoning capabilities
+
+### Configuration
+
+Set your preferred model and corresponding API key in the `.env` file:
+
 ```
-LLM_PROVIDER=openai
-OPENAI_API_KEY=your_openai_api_key_here
-MODEL_NAME=gpt-4.5-preview
+# Default model to use (will be used if not overridden by --model flag)
+LLM_MODEL=gemini-2.0-flash
+
+# You only need to set the API key for the model's provider that you plan to use
+GEMINI_API_KEY=your_gemini_api_key_here
+# OPENAI_API_KEY=your_openai_api_key_here  
+# DEEPSEEK_API_KEY=your_deepseek_api_key_here
 ```
 
-### Using Free Local LLM with Ollama
-To use Ollama's local LLM:
+You can also specify the model when running the application:
 
-1. Install Ollama from [ollama.ai](https://ollama.ai/)
-2. Pull a model: `ollama pull llama3.2` (or any other model)
-3. Configure your `.env` file:
+```bash
+python run_flask.py --model gpt-4o
 ```
-LLM_PROVIDER=ollama
-OLLAMA_MODEL=llama3.2
-OLLAMA_BASE_URL=http://localhost:11434
-```
-
-### Using Hugging Face Models
-To use Hugging Face models:
-
-1. Create a free account at [huggingface.co](https://huggingface.co/) and get an API key
-2. Configure your `.env` file:
-```
-LLM_PROVIDER=huggingface
-HUGGINGFACE_API_KEY=your_huggingface_api_key_here
-HUGGINGFACE_MODEL=mistralai/Mistral-7B-Instruct-v0.1
-```
-You can specify any model available on Hugging Face that supports text generation.
 
 ### Setting Up Google Integration
 
@@ -95,7 +102,7 @@ The Bahai Life Coach agent can integrate with Google Calendar and Google Tasks t
 Run the web-based chat interface:
 
 ```bash
-python app/web_server.py
+python run_flask.py
 ```
 
 Then open your browser and navigate to:
@@ -103,15 +110,15 @@ Then open your browser and navigate to:
 http://localhost:5555
 ```
 
-### Simplified Web Server
-
-If you encounter compatibility issues with the main web server, you can use the simplified version:
-
+You can specify a different model:
 ```bash
-python simple_web_server.py
+python run_flask.py --model gpt-4o
 ```
 
-This simplified version provides the same functionality but with fewer dependencies and better compatibility with Ollama and Hugging Face.
+Or a different port:
+```bash
+python run_flask.py --port 8080
+```
 
 ### Console Interface (Alternative)
 
@@ -198,9 +205,7 @@ bahai-life-coach-agent/
 │   │   └── templates/  # HTML templates
 │   ├── main.py         # Console application entry point
 │   └── web_server.py   # Web server entry point
-├── simple_web_server.py # Simplified web server
-├── test_ollama_direct.py # Test script for Ollama
-├── test_huggingface.py  # Test script for Hugging Face
+├── run_flask.py        # Flask server runner
 ├── test_google_integration.py # Test script for Google integration
 ├── credentials.json    # Google API credentials (download from Google Cloud Console)
 ├── token.json          # Google API tokens (auto-generated on first use)
@@ -212,13 +217,15 @@ bahai-life-coach-agent/
 
 ## Troubleshooting
 
-### Compatibility Issues
-If you encounter compatibility issues with the main web server, try:
+### Model Selection Issues
+If you encounter issues with model selection:
 
-1. Using the simplified web server: `python simple_web_server.py`
-2. Ensuring you have the correct versions of dependencies in `requirements.txt`
-3. For Ollama: Check that Ollama is running (`curl http://localhost:11434/api/version`)
-4. For Hugging Face: Check your API key and model selection
+1. Ensure you have set the correct API key for your selected model in `.env`
+2. Try a different model with `--model` flag (e.g., `--model gemini-pro`)
+3. Check that you have installed the required package for your model:
+   - OpenAI models: `pip install langchain-openai`
+   - Gemini models: `pip install langchain-google-genai`
+   - Deepseek models: `pip install langchain-deepseek`
 
 ### HTTPS and Microphone Access
 For microphone access in browsers, you may need to:
@@ -235,29 +242,6 @@ If you encounter issues with the Google integration:
 3. Try deleting the `token.json` file to reset authentication
 4. Ensure you have the correct permissions on your Google account
 5. Check your internet connection
-
-## Testing Your Integration
-
-### Testing Hugging Face Integration
-Run the Hugging Face test script to verify your setup:
-```bash
-python test_huggingface.py
-```
-
-### Testing Ollama Integration
-Test the Ollama connection with:
-```bash
-python test_ollama_direct.py
-```
-
-## Development
-
-To add new features or modify the agent:
-
-1. Update prompt templates in `app/prompts/`
-2. Modify chains in `app/chains/`
-3. Extend agent capabilities in `app/agents/`
-4. Enhance the web interface in `app/web/`
 
 ## License
 

@@ -17,8 +17,8 @@ load_dotenv()
 def main():
     """Run the test for Google Gemini integration."""
     try:
-        # Set the LLM_PROVIDER environment variable to gemini for this test
-        os.environ["LLM_PROVIDER"] = "gemini"
+        # Set the LLM_MODEL environment variable to gemini for this test
+        os.environ["LLM_MODEL"] = "gemini"
         
         # Import the agent adapter and create a new conversation
         from app.agents.agent_adapter import get_agent

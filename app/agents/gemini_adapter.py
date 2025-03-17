@@ -1,7 +1,9 @@
 """
-Google Gemini adapter for the Bahai Life Coach agent.
+Gemini Adapter for the Bahai Life Coach agent.
 
-This module provides an adapter to use Google's Gemini API as an LLM provider.
+This module provides an adapter to use Google's Gemini API as an LLM model.
+It integrates with the LangChain library and provides a uniform interface
+for the Bahai Life Coach agent to interact with Gemini models.
 """
 
 import os
@@ -33,10 +35,10 @@ logger = logging.getLogger(__name__)
 
 class GeminiAdapter:
     """
-    Adapter for the Google Gemini API.
+    An adapter for integrating Google's Gemini AI models with the Bahai Life Coach.
     
-    This class provides an interface to Gemini that matches the expected interface
-    of other LLM providers in the Bahai Life Coach system.
+    This adapter wraps the Gemini API in a way that allows it to be used
+    interchangeably with other LLM models in the Bahai Life Coach system.
     """
     
     def __init__(self):

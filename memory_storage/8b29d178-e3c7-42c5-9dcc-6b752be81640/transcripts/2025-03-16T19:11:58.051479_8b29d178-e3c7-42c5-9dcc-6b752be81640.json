@@ -1,0 +1,14 @@
+{
+  "conversation_id": "8b29d178-e3c7-42c5-9dcc-6b752be81640",
+  "timestamp": "2025-03-16T19:11:58.051479",
+  "messages": [
+    {
+      "role": "user",
+      "content": "body three emotions"
+    },
+    {
+      "role": "assistant",
+      "content": "Hello! I'm so glad you're here. I'm ready to support you on your journey. Would you like to begin with a Bah\u00e1'\u00ed prayer to set a positive tone for our session?\n\nAlso, to get started, could you give me a quick rating (1-5, where 1 is \"crisis\" and 5 is \"great\") for how you're feeling in these areas today: physically, emotionally, professionally, in your family life, and spiritually?"
+    }
+  ]
+}

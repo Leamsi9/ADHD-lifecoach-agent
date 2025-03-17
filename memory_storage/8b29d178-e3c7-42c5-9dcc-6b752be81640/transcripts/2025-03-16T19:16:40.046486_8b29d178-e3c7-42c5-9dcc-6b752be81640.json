@@ -1,0 +1,14 @@
+{
+  "conversation_id": "8b29d178-e3c7-42c5-9dcc-6b752be81640",
+  "timestamp": "2025-03-16T19:16:40.046486",
+  "messages": [
+    {
+      "role": "user",
+      "content": "I said I'd like to explore my spiritual focus, discipline and alignment."
+    },
+    {
+      "role": "assistant",
+      "content": "(Stage 2: Diagnose & Prioritize)\n\nThanks! On a scale of 1-5, where 1 is \"completely scattered\" and 5 is \"laser-like focus,\" how would you rate your spiritual focus right now?"
+    }
+  ]
+}

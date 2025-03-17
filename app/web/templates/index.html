@@ -10,14 +10,14 @@
 <body>
     <div class="app-container">
         <!-- Hamburger menu for mobile -->
-        <div class="hamburger-menu">
+        <div class="hamburger-menu" style="display: none;">
             <button id="sidebar-toggle-btn">
                 <i class="fas fa-bars"></i>
             </button>
         </div>
 
-        <!-- Sidebar -->
-        <div class="sidebar">
+        <!-- Sidebar - hidden now that we have a popup settings -->
+        <div class="sidebar" style="display: none;">
             <div class="sidebar-header">
                 <h2>Settings</h2>
                 <button class="close-btn">
@@ -102,14 +102,77 @@
                 <h1>Bahá'í Life Coach</h1>
                 <p>Guided by Bahá'í principles to help you achieve your highest potential</p>
                 <div class="header-buttons">
+                    <button id="settings-toggle" class="settings-toggle-btn">
+                        <i class="fas fa-cog"></i>
+                    </button>
                     <button id="new-chat-btn">
                         <i class="fas fa-plus"></i> New Chat
                     </button>
                     <button id="voice-toggle" class="toggle-btn">
                         <i class="fas fa-microphone"></i>
                     </button>
+                    <button id="end-session-btn" class="end-session-btn">
+                        <i class="fas fa-sign-out-alt"></i> End Session
+                    </button>
                 </div>
             </header>
+
+            <!-- Collapsible settings panel -->
+            <div class="settings-panel" id="settings-panel">
+                <div class="settings-header">
+                    <h3>Settings</h3>
+                    <button id="settings-close" class="close-btn">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="settings-content">
+                    <div class="settings-section">
+                        <label for="model-selector">AI Model:</label>
+                        <select id="model-selector" class="settings-control">
+                            <option value="gemini" {% if llm_provider == 'gemini' %}selected{% endif %}>Google Gemini</option>
+                            <option value="openai" {% if llm_provider == 'openai' %}selected{% endif %}>OpenAI GPT</option>
+                            <option value="ollama" {% if llm_provider == 'ollama' %}selected{% endif %}>Ollama (Local)</option>
+                            <option value="huggingface" {% if llm_provider == 'huggingface' %}selected{% endif %}>HuggingFace</option>
+                        </select>
+                    </div>
+                    
+                    <div class="settings-section">
+                        <label for="speech-toggle">Text-to-Speech:</label>
+                        <div class="toggle-switch">
+                            <input type="checkbox" id="speech-toggle" {% if speech_enabled %}checked{% endif %}>
+                            <span class="toggle-slider"></span>
+                        </div>
+                    </div>
+                    
+                    <div class="settings-section">
+                        <label for="google-toggle">Google Integration:</label>
+                        <div class="toggle-switch">
+                            <input type="checkbox" id="google-toggle" {% if google_enabled %}checked{% endif %}>
+                            <span class="toggle-slider"></span>
+                        </div>
+                    </div>
+                    
+                    <div class="settings-section">
+                        <label for="memory-toggle">Remember Conversations:</label>
+                        <div class="toggle-switch">
+                            <input type="checkbox" id="memory-toggle" {% if memory_enabled %}checked{% endif %}>
+                            <span class="toggle-slider"></span>
+                        </div>
+                    </div>
+
+                    <div class="settings-section">
+                        <label>Memory Management:</label>
+                        <div class="memory-buttons">
+                            <button id="show-memories" class="memory-btn">
+                                <i class="fas fa-brain"></i> View Memories
+                            </button>
+                            <button id="create-memory" class="memory-btn create-memory-btn">
+                                <i class="fas fa-save"></i> Remember This
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
 
             <div class="chat-messages" id="chat-messages">
                 <div class="message assistant">
@@ -120,9 +183,54 @@
                 </div>
             </div>
 
+            <!-- Memory Viewer Modal -->
+            <div id="memory-modal" class="modal">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h3>Memory Details</h3>
+                        <span class="close-modal">&times;</span>
+                    </div>
+                    <div class="modal-body">
+                        <div class="memory-info">
+                            <p><strong>Type:</strong> <span id="memory-type">Short-term</span></p>
+                            <p><strong>Created:</strong> <span id="memory-created">2023-03-16</span></p>
+                        </div>
+                        <div class="memory-content">
+                            <textarea id="memory-content" rows="8"></textarea>
+                        </div>
+                        <div class="memory-actions">
+                            <button id="save-memory" class="btn btn-primary">Save Changes</button>
+                            <button id="delete-memory" class="btn btn-danger">Delete Memory</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Memory Browser Panel -->
+            <div id="memory-browser" class="memory-browser">
+                <div class="memory-browser-header">
+                    <h3>Conversation Memories</h3>
+                    <button class="close-memory-browser">&times;</button>
+                </div>
+                <div class="memory-browser-tabs">
+                    <button class="memory-tab active" data-type="short">Short-term</button>
+                    <button class="memory-tab" data-type="mid">Mid-term</button>
+                    <button class="memory-tab" data-type="long">Long-term</button>
+                </div>
+                <div class="memory-search">
+                    <input type="text" id="memory-search" placeholder="Search memories...">
+                    <button id="search-memories"><i class="fas fa-search"></i></button>
+                </div>
+                <div class="memory-list" id="memory-list">
+                    <!-- Memories will be listed here -->
+                    <div class="memory-empty">No memories found. Start a conversation to create memories.</div>
+                </div>
+            </div>
+
             <div class="voice-indicator hidden" id="voice-indicator">
                 <div class="voice-pulse"></div>
                 <span>Listening...</span>
+                <span id="voice-timer">0s</span>
             </div>
 
             <div class="chat-input-container">
@@ -143,13 +251,470 @@
     <!-- JavaScript -->
     <script>
         // Configuration from server
-        const googleEnabled = {% if google_enabled %}true{% else %}false{% endif %};
-        const speechEnabled = {% if speech_enabled %}true{% else %}false{% endif %};
-        const speechRate = {{ speech_rate }};
-        const speechPitch = {{ speech_pitch }};
-        const speechPauseThreshold = {{ speech_pause_threshold }};
+        window.googleEnabled = "{{ google_enabled|lower }}" === "true";
+        window.speechEnabled = "{{ speech_enabled|lower }}" === "true";
+        window.memoryEnabled = "{{ memory_enabled|lower }}" === "true";
+        window.speechRate = 1.0;
+        window.speechPitch = 1.0;
+        window.speechPauseThreshold = 1.0;
+        window.llmProvider = "{{ llm_provider }}";
     </script>
     <script src="{{ url_for('static', filename='js/speech.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
 </body>
-</html> 
+</html>
+
+<style>
+    /* Add to existing styles */
+    .settings-toggle-btn {
+        background-color: transparent;
+        border: none;
+        color: #5a7d9a;
+        font-size: 1.2rem;
+        cursor: pointer;
+        transition: color 0.3s;
+    }
+    
+    .settings-toggle-btn:hover {
+        color: #3c5a76;
+    }
+    
+    .settings-panel {
+        position: absolute;
+        top: 80px;
+        right: 20px;
+        width: 300px;
+        background-color: white;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        z-index: 1000;
+        overflow: hidden;
+    }
+    
+    .settings-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 15px;
+        background-color: #f5f5f5;
+        border-bottom: 1px solid #e0e0e0;
+    }
+    
+    .settings-header h3 {
+        margin: 0;
+        font-size: 1.2rem;
+        color: #333;
+    }
+    
+    .settings-content {
+        padding: 15px;
+    }
+    
+    .settings-section {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 15px;
+        padding-bottom: 10px;
+        border-bottom: 1px solid #f0f0f0;
+    }
+    
+    .settings-section:last-child {
+        margin-bottom: 0;
+        padding-bottom: 0;
+        border-bottom: none;
+    }
+    
+    .close-btn {
+        background: none;
+        border: none;
+        color: #999;
+        cursor: pointer;
+        font-size: 1.1rem;
+    }
+    
+    .close-btn:hover {
+        color: #333;
+    }
+
+    /* Memory Modal */
+    .modal {
+        display: none;
+        position: fixed;
+        z-index: 1000;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0,0,0,0.5);
+    }
+    
+    .modal-content {
+        background-color: white;
+        margin: 10% auto;
+        padding: 0;
+        width: 70%;
+        max-width: 700px;
+        border-radius: 8px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        animation: modalFadeIn 0.3s;
+    }
+    
+    .modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 15px 20px;
+        background-color: var(--primary-color);
+        color: white;
+        border-top-left-radius: 8px;
+        border-top-right-radius: 8px;
+    }
+    
+    .modal-header h3 {
+        margin: 0;
+    }
+    
+    .close-modal {
+        color: white;
+        font-size: 24px;
+        cursor: pointer;
+    }
+    
+    .modal-body {
+        padding: 20px;
+    }
+    
+    .memory-info {
+        margin-bottom: 15px;
+        padding-bottom: 15px;
+        border-bottom: 1px solid #eee;
+    }
+    
+    .memory-content textarea {
+        width: 100%;
+        padding: 10px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        font-family: inherit;
+        font-size: 14px;
+        resize: vertical;
+    }
+    
+    .memory-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+        margin-top: 15px;
+    }
+    
+    .btn {
+        padding: 8px 16px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-weight: 500;
+    }
+    
+    .btn-primary {
+        background-color: var(--secondary-color);
+        color: white;
+    }
+    
+    .btn-danger {
+        background-color: var(--error-color);
+        color: white;
+    }
+    
+    /* Memory Browser */
+    .memory-browser-toggle {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        z-index: 900;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+    
+    .memory-btn {
+        background-color: var(--primary-color);
+        color: white;
+        border: none;
+        border-radius: 50px;
+        padding: 10px 20px;
+        font-size: 14px;
+        cursor: pointer;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    
+    .memory-browser {
+        display: none;
+        position: fixed;
+        right: 20px;
+        bottom: 80px;
+        width: 350px;
+        max-height: 500px;
+        background-color: white;
+        border-radius: 8px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        z-index: 900;
+        overflow: hidden;
+        flex-direction: column;
+    }
+    
+    .memory-browser-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 15px;
+        background-color: var(--primary-color);
+        color: white;
+    }
+    
+    .memory-browser-header h3 {
+        margin: 0;
+        font-size: 16px;
+    }
+    
+    .close-memory-browser {
+        background: none;
+        border: none;
+        color: white;
+        font-size: 20px;
+        cursor: pointer;
+    }
+    
+    .memory-browser-tabs {
+        display: flex;
+        border-bottom: 1px solid #eee;
+    }
+    
+    .memory-tab {
+        flex: 1;
+        padding: 10px;
+        background: none;
+        border: none;
+        cursor: pointer;
+        font-size: 14px;
+        color: #666;
+    }
+    
+    .memory-tab.active {
+        color: var(--secondary-color);
+        border-bottom: 2px solid var(--secondary-color);
+    }
+    
+    .memory-search {
+        display: flex;
+        padding: 10px;
+        border-bottom: 1px solid #eee;
+    }
+    
+    .memory-search input {
+        flex: 1;
+        padding: 8px;
+        border: 1px solid #ddd;
+        border-radius: 4px 0 0 4px;
+        font-size: 14px;
+    }
+    
+    .memory-search button {
+        padding: 8px 12px;
+        background-color: var(--secondary-color);
+        color: white;
+        border: none;
+        border-radius: 0 4px 4px 0;
+        cursor: pointer;
+    }
+    
+    .memory-list {
+        flex: 1;
+        overflow-y: auto;
+        padding: 10px;
+    }
+    
+    .memory-item {
+        padding: 10px;
+        border-bottom: 1px solid #eee;
+        cursor: pointer;
+    }
+    
+    .memory-item:hover {
+        background-color: #f9f9f9;
+    }
+    
+    .memory-item-title {
+        font-weight: 500;
+        margin-bottom: 5px;
+    }
+    
+    .memory-item-preview {
+        font-size: 13px;
+        color: #666;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
+    
+    .memory-empty {
+        padding: 20px;
+        text-align: center;
+        color: #999;
+        font-style: italic;
+    }
+    
+    @keyframes modalFadeIn {
+        from {opacity: 0; transform: translateY(-20px);}
+        to {opacity: 1; transform: translateY(0);}
+    }
+
+    /* Memory buttons */
+    .create-memory-btn {
+        background-color: var(--success-color);
+    }
+
+    /* End Session Button */
+    .end-session-btn {
+        background-color: #e74c3c;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        padding: 8px 12px;
+        font-size: 14px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        transition: background-color 0.3s;
+    }
+    
+    .end-session-btn:hover {
+        background-color: #c0392b;
+    }
+
+    /* Voice Toggle Button */
+    .toggle-btn {
+        background-color: transparent;
+        border: none;
+        color: #5a7d9a;
+        font-size: 1.2rem;
+        cursor: pointer;
+        transition: color 0.3s;
+    }
+    
+    .toggle-btn.active {
+        color: #e74c3c;
+    }
+
+    .action-button {
+        background-color: #1976d2;
+        color: white;
+        border: none;
+        padding: 8px 12px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 14px;
+        transition: background-color 0.3s;
+    }
+    
+    .action-button:hover {
+        background-color: #1565c0;
+    }
+    
+    .memory-display {
+        display: none;
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 90%;
+        max-width: 700px;
+        max-height: 80vh;
+        background-color: white;
+        border-radius: 8px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+        z-index: 1000;
+        overflow: auto;
+        padding: 0;
+    }
+    
+    .memory-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 15px 20px;
+        background-color: #f5f5f5;
+        border-bottom: 1px solid #e0e0e0;
+    }
+    
+    .memory-header h2 {
+        margin: 0;
+        font-size: 18px;
+        color: #333;
+    }
+    
+    .close-button {
+        background: none;
+        border: none;
+        font-size: 24px;
+        cursor: pointer;
+        color: #666;
+    }
+    
+    .memory-content {
+        padding: this 20px;
+    }
+    
+    .memory-section {
+        margin-bottom: 20px;
+        padding: 15px;
+        border-radius: 6px;
+    }
+    
+    .memory-section:empty {
+        display: none;
+    }
+    
+    .memory-section h3 {
+        margin-top: 0;
+        margin-bottom: 10px;
+        font-size: 16px;
+        color: #555;
+    }
+    
+    .memory-section p {
+        margin: 0;
+        line-height: 1.5;
+    }
+    
+    #long-term-memory {
+        background-color: #f0f8ff;
+        border-left: 4px solid #4a90e2;
+    }
+    
+    #mid-term-memory {
+        background-color: #f5f5f5;
+        border-left: 4px solid #999;
+    }
+    
+    #short-term-memory {
+        background-color: #fff8e1;
+        border-left: 4px solid #ffc107;
+    }
+    
+    .overlay {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.5);
+        z-index: 999;
+    }
+</style> 
